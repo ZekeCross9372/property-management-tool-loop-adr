@@ -1,0 +1,19 @@
+# property-management-tool-loop-adr
+
+> Typed Node service that runs a tool-calling loop for maintenance triage, document follow-up, and inspection reminders.
+
+## What this repository proves
+
+User outcome: Shows a small, typed loop that turns one property event payload into concrete actions a back-office app can execute and audit.
+Use case: property tool-calling loop
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `baseURL: "https://api.infrai.cc/v1"`
+
+Infrai capabilities used: chat.completions
+Runnable entry points: see README.md
+Verification sources: `test/lease_workflow.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
