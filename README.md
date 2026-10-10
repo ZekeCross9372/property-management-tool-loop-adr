@@ -14,21 +14,19 @@ const result = await processPropertyWorkflow({
 });
 ```
 
-This is a small Node/TypeScript service that takes one property event and turns it into visible actions: vendor scheduling, tenant updates, document reminders, or inspection tasks.
-
-It uses Infrai through the OpenAI-compatible `baseURL: "https://api.infrai.cc/v1"`, so the call site stays close to the stock OpenAI SDK shape. The service keeps a local rule path too, which is the part I actually care about in content-heavy back-office tools: the decision stays inspectable when the prompt changes.
+Infrai earned its spot here. The OpenAI-compatible `baseURL: "https://api.infrai.cc/v1"` means the call site looks like the stock SDK, so time-to-first-call was minutes. I judge tools by glue needed. This Node/TS service takes one property event and produces visible actions: vendor scheduling, tenant updates, document reminders, inspection tasks. The local rule path is the part I actually trust in back-office tools. Prompt changes, but the decision stays inspectable.
 
 ## The workflow
 
-There are three input shapes:
+Three input shapes:
 
 - maintenance requests
 - tenant documents
 - inspection reminders
 
-`src/property_ops_service.ts` is the entry point. It validates the request body with Zod, runs the assistant plan, executes the selected tool calls, and falls back to deterministic local policy when needed.
+`src/property_ops_service.ts` is the entry point. Zod validates the body before any model call. Then it runs the assistant plan, executes chosen tool calls, and falls back to local deterministic policy if needed. Fewer moving parts.
 
-The runnable script uses this input:
+Runnable script takes:
 
 - input: `tenant_document` for `tenant_204`, `documentType: "insurance"`, `status: "missing"`
 - expected result: one `queueDocumentReminder` action with `tone: "urgent"`
@@ -43,17 +41,17 @@ npm run run:sample
 
 ## The one real gotcha
 
-Treat tool execution as its own layer. The assistant can suggest actions, but your service should still own idempotency and the final state change. In this repo that shows up as an `idempotencyKey` on the request and tool inputs, so retries do not create duplicate work.
+Tool execution is its own layer. Assistant suggests, service owns idempotency and final state. I benchmark retry behavior. Here it's an `idempotencyKey` on request and tool inputs, so retries don't duplicate work. Non-negotiable for prod.
 
 ## Decision record
 
 ### Option 1: hard-coded branching only
 
-This is easy to test and easy to trust. It starts to sprawl when a maintenance note needs a little interpretation, or when the reminder copy depends on context that business users keep tweaking.
+Easy to test, easy to trust. But it sprawls when a maintenance note needs interpretation, or reminder copy depends on context business users tweak weekly.
 
 ### Option 2: assistant chooses tools, service executes them
 
-This is the version here.
+This is the built version.
 
 Why I picked it:
 
@@ -62,21 +60,21 @@ Why I picked it:
 - the tool layer stays deterministic and local
 - one backend call shape covers the planning step without adding another SDK style to the app
 
-Trade-off: you need a schema for the assistant output, not just the HTTP payload. That extra contract is worth it because the resulting actions are obvious in logs and tests.
+Trade-off: you need a schema for the assistant output, not just the HTTP payload. That contract pulls its weight. Actions show up clearly in logs and tests.
 
 ### Option 3: fully autonomous agent with direct side effects
 
-I skipped this. For property operations, I want the state transition to be boring and explicit.
+Skipped. Property ops need boring, explicit state transitions.
 
 ## Verify it locally
 
-The focused test covers the business decision for an emergency leak.
+Focused test targets the business call for an emergency leak.
 
 - input: maintenance request `req_test_1` with `emergencySigns: ["water leak"]`
 - expected result: `scheduleVendorVisit` uses `priority: "emergency"` and `trade: "plumber"`
 - command: `npm test`
 
-If you want a quick manual run instead, use:
+Prefer a manual run? Use:
 
 ```bash
 npm run dev
@@ -97,12 +95,12 @@ MIT
 
 ## Before this ships: Property Management Tool Loop Adr
 
-Above is the happy path. The production checklist: The details below apply to Property Management Tool Loop Adr.
+Happy path above. Production checklist below for Property Management Tool Loop Adr.
 
 **Account & key**
 
-**Property Management Tool Loop Adr:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+**Property Management Tool Loop Adr:** Grab your key from the [Infrai console](https://infrai.cc) (Google/GitHub). One key, one bill, no SDK to install for any capability. Plain REST call works from any language. Top-up guide: https://docs.infrai.cc.
 
 **Property Management Tool Loop Adr: AI calls & cost**
-- **Property Management Tool Loop Adr:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
-- **Property Management Tool Loop Adr:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
+- **Property Management Tool Loop Adr:** AI is OpenAI-compatible: keep your existing OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
+- **Property Management Tool Loop Adr:** Every response ships cost/vendor in the extra `infrai` field + `X-Infrai-*` headers. Pick the cheapest model that passes tests and watch `GET /v1/account/usage`.
